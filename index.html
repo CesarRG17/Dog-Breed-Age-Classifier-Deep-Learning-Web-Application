@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA Clasificadora de Perros | Proyecto Ingeniería</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .drop-zone--over { border-color: #2563eb; background-color: #eff6ff; }
+        #preview-img { max-height: 400px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans antialiased text-slate-900">
+
+    <div class="container mx-auto px-4 py-12">
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-extrabold text-slate-800 mb-4 tracking-tight">
+                Clasificador de Perros <span class="text-blue-600">IA</span>
+            </h1>
+            <p class="text-lg text-slate-600 max-w-2xl mx-auto">
+                Proyecto de Ingeniería: Identificación de 27 razas, estimación de edad y consulta de peso promedio en tiempo real.
+            </p>
+        </div>
+
+        <div class="max-w-4xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-slate-200">
+                <div id="drop-area" class="group border-4 border-dashed border-slate-200 rounded-2xl p-12 text-center hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer relative">
+                    <input type="file" id="fileElem" accept="image/*" class="hidden" onchange="handleFiles(this.files)">
+                    
+                    <div class="space-y-4">
+                        <div class="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                            <i class="fas fa-dog text-3xl text-blue-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-xl font-bold text-slate-700">Sube la foto del perro</p>
+                            <p class="text-slate-500">Arrastra o haz clic para seleccionar archivo</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loading" class="hidden text-center py-10">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+                <p class="mt-4 text-blue-700 font-bold animate-pulse">Procesando con EfficientNet-B3...</p>
+            </div>
+
+            <div id="result-card" class="hidden bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 transform transition-all duration-500">
+                <div class="flex flex-col lg:flex-row">
+                    
+                    <div class="lg:w-1/2 bg-slate-100 p-6 flex items-center justify-center">
+                        <div class="relative w-full h-full flex items-center justify-center">
+                            <img id="preview-img" src="#" alt="Preview" 
+                                 class="rounded-xl shadow-lg object-contain w-full h-full bg-white border">
+                            <div class="absolute top-4 right-4 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs">
+                                Vista Previa
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lg:w-1/2 p-10 flex flex-col justify-center space-y-6">
+                        <div id="dog-info" class="space-y-6">
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-black rounded uppercase tracking-widest">IA Predictor</span>
+                                    <span id="res-conf" class="text-sm font-bold text-blue-600 italic">98.5% confianza</span>
+                                </div>
+                                <h2 id="res-breed" class="text-4xl font-black text-slate-800 uppercase tracking-tighter leading-none">Raza</h2>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                    <p class="text-xs font-bold text-slate-400 uppercase mb-1">Rango de Edad</p>
+                                    <p id="res-age" class="text-xl font-extrabold text-slate-700 italic">1-4 Años</p>
+                                </div>
+                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                    <p class="text-xs font-bold text-slate-400 uppercase mb-1">Peso Promedio</p>
+                                    <p id="res-weight" class="text-xl font-extrabold text-slate-700 italic">25 kg</p>
+                                </div>
+                            </div>
+
+                            <div class="pt-4 border-t border-slate-100">
+                                <p class="text-sm text-slate-500 leading-relaxed">
+                                    <i class="fas fa-info-circle mr-1"></i> El peso mostrado es un promedio estadístico basado en la raza y edad detectadas en nuestro dataset.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div id="no-dog-alert" class="hidden p-6 bg-amber-50 border-l-8 border-amber-500 rounded-r-xl">
+                            <div class="flex items-center">
+                                <i class="fas fa-shield-dog text-3xl text-amber-600 mr-4"></i>
+                                <div>
+                                    <h4 class="font-black text-amber-800 text-lg uppercase">Baja Certidumbre</h4>
+                                    <p id="no-dog-text" class="text-amber-700">La imagen no coincide con una raza conocida o la calidad es insuficiente.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-16 text-center text-slate-400 text-sm">
+            <p>Clasificador de Razas de Perros Mexicanas v2.0 | Ingeniería IA/p>
+        </footer>
+    </div>
+
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileElem = document.getElementById('fileElem');
+        const loading = document.getElementById('loading');
+        const resultCard = document.getElementById('result-card');
+        const dogInfo = document.getElementById('dog-info');
+        const noDogAlert = document.getElementById('no-dog-alert');
+
+        // Drag and Drop Logic
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('drop-zone--over'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('drop-zone--over'), false);
+        });
+
+        dropArea.addEventListener('drop', e => handleFiles(e.dataTransfer.files), false);
+        dropArea.onclick = () => fileElem.click();
+
+        function handleFiles(files) {
+            const file = files[0];
+            if (file) {
+                previewImage(file);
+                uploadFile(file);
+            }
+        }
+
+        function previewImage(file) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = () => {
+                document.getElementById('preview-img').src = reader.result;
+            };
+        }
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // UI Reset
+            loading.classList.remove('hidden');
+            resultCard.classList.add('hidden');
+            dogInfo.classList.add('hidden');
+            noDogAlert.classList.add('hidden');
+
+            try {
+                // Al dejar solo '/predict', el navegador buscará automáticamente 
+                // el endpoint en la misma URL donde está alojado el sitio.
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                loading.classList.add('hidden');
+                resultCard.classList.remove('hidden');
+
+                if (data.is_dog) {
+                    dogInfo.classList.remove('hidden');
+                    document.getElementById('res-breed').innerText = data.breed;
+                    document.getElementById('res-age').innerText = data.age;
+                    document.getElementById('res-weight').innerText = data.weight;
+                    document.getElementById('res-conf').innerText = `Confianza: ${data.confidence}`;
+                    document.getElementById('res-conf').className = "text-sm font-bold text-green-600 italic";
+                } else {
+                    noDogAlert.classList.remove('hidden');
+                    document.getElementById('no-dog-text').innerText = data.message || "No se detectó una raza conocida.";
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Hubo un error al conectar con el backend. Asegúrate de que FastAPI esté corriendo.');
+                loading.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
